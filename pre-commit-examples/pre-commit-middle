@@ -4,6 +4,52 @@ import os
 import sys
 import subprocess
 import platform
+import urllib.request
+import tarfile
+
+DOWNLOAD_URLS = {
+    "Linux": {
+        "amd64": f"https://github.com/gitleaks/gitleaks/releases/download/v8.16.4/gitleaks_8.16.4_linux_x64.tar.gz",
+        "arm64": f"https://github.com/gitleaks/gitleaks/releases/download/v8.16.4/gitleaks_8.16.4_linux_arm64.tar.gz",
+    },
+    "Darwin": {
+        "amd64": f"https://github.com/gitleaks/gitleaks/releases/download/v8.16.4/gitleaks_8.16.4_darwin_x64.tar.gz",
+        "arm64": f"https://github.com/gitleaks/gitleaks/releases/download/v8.16.4/gitleaks_8.16.4_darwin_arm64.tar.gz",
+    },
+}
+
+
+def install_gitleaks():
+    os_name = platform.system()
+    arch = platform.machine()
+    
+    if os_name == "Linux" and arch == "x86_64":
+        arch = "amd64"
+    elif os_name not in DOWNLOAD_URLS or arch not in DOWNLOAD_URLS[os_name]:
+        print(f"Unsupported platform: {os_name} {arch}")
+        sys.exit(1)
+
+    download_url = DOWNLOAD_URLS[os_name][arch]
+    
+    try:
+        # Download gitleaks tarball
+        filename, headers = urllib.request.urlretrieve(download_url)
+        
+        # Extract tarball
+        with tarfile.open(filename, "r:gz") as tar:
+            # Find the gitleaks executable
+            gitleaks_name = [name for name in tar.getnames() if os.path.basename(name) == "gitleaks"][0]
+            # Extract only the gitleaks executable
+            tar.extract(gitleaks_name)
+        
+        # Add the directory containing gitleaks to PATH
+        gitleaks_dir = os.path.dirname(gitleaks_name)
+        os.environ["PATH"] = os.path.abspath(gitleaks_dir) + os.pathsep + os.environ["PATH"]
+        
+        print("gitleaks installed successfully.")
+    except Exception as e:
+        print(f"Failed to install gitleaks: {str(e)}")
+        sys.exit(1)
 
 
 def gitleaksEnabled():
@@ -14,74 +60,32 @@ def gitleaksEnabled():
     return True
 
 
-def installGitleaks():
-    """Install gitleaks based on the operating system."""
-    current_os = platform.system()
-    if current_os == "Linux":
-        if not os.path.exists("gitleaks"):
-            subprocess.call(["git", "clone", "https://github.com/gitleaks/gitleaks.git"])
-        os.chdir("gitleaks")
-        subprocess.call(["make", "build"])
+if gitleaksEnabled():
+    try:
+        subprocess.run(["gitleaks", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except FileNotFoundError:
+        install_gitleaks()
 
-        # Get the directory path where the gitleaks executable is located
-        gitleaks_dir = os.path.join(os.getcwd())
-        print("gitleaks dir is:", gitleaks_dir)
-
-        # Add the gitleaks directory to the PATH variable
-        os.environ["PATH"] = gitleaks_dir + os.pathsep + os.environ.get("PATH", "")
-        path_variable = os.environ.get("PATH")
-        print("PATH variable:", path_variable)
-
-    elif current_os == "Darwin":
-        try:
-            subprocess.check_output(["brew", "list", "gitleaks"])
-            print("Gitleaks is already installed.")
-        except subprocess.CalledProcessError:
-            subprocess.call(["brew", "install", "gitleaks"])
-    else:
-        print("Gitleaks installation is only supported on Linux and macOS.")
-        sys.exit(1)
-
-
-def scanLastCommit():
-    """Scan the last commit using gitleaks."""
-    gitleaks_opts = ["detect", "--redact", "-v"]
+    report_path = os.path.join(os.getcwd(), "report.json")
+    gitleaks_opts = ["protect", "--redact", "-v", "--staged"]
     gitleaks_report = "report.json"
     gitleaks_git_logs = "HEAD~1..HEAD"
-#     report_path = os.path.join(os.getcwd(), "report.json")
+    report_path = os.path.join(os.getcwd(), "report.json")
     cmd = [
-        "gitleaks",
+        os.path.abspath("gitleaks"),
         *gitleaks_opts,
-#         f"--report-path={report_path}",
-        f"--report-path",
+        f"--report-path={report_path}",
         gitleaks_report,
         "--log-opts=" + gitleaks_git_logs
     ]
     # Print the command before executing
     print("Executing command:", " ".join(cmd))
-
-    # Execute the command
-    exit_code = subprocess.run(" ".join(cmd), shell=True, check=True).returncode
-    if exit_code == 1:
-        print('''Warning: gitleaks has detected sensitive information in your changes.
-To disable the gitleaks pre-commit hook run the following command:
-
-    git config hooks.gitleaks false
-''')
-        sys.exit(1)
-
-
-
-if gitleaksEnabled():
-    # Check if gitleaks is installed
     try:
-        subprocess.check_output(["gitleaks", "version"])
-    except FileNotFoundError:
-        print("Gitleaks not found. Installing...")
-        installGitleaks()
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        if e.stderr is not None:
+            print(e.stderr.decode().strip())  # Print the error message from gitleaks
+        sys.exit(e.returncode)
 
-    # Scan the last commit
-    scanLastCommit()
 else:
-    print('gitleaks pre-commit disabled\
-     (enable with `git config hooks.gitleaks true`)')
+    print('gitleaks precommit disabled (enable with `git config hooks.gitleaks true`)')
