@@ -48,11 +48,12 @@ def scanLastCommit():
     gitleaks_opts = ["detect", "--redact", "-v"]
     gitleaks_report = "report.json"
     gitleaks_git_logs = "HEAD~1..HEAD"
-    report_path = os.path.join(os.getcwd(), "report.json")
+#     report_path = os.path.join(os.getcwd(), "report.json")
     cmd = [
         "gitleaks",
         *gitleaks_opts,
-        f"--report-path={report_path}",
+#         f"--report-path={report_path}",
+        f"--report-path",
         gitleaks_report,
         "--log-opts=" + gitleaks_git_logs
     ]
