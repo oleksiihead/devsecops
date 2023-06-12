@@ -14,14 +14,19 @@ def gitleaksEnabled():
 
 
 if gitleaksEnabled():
+    gitleaks_opts = ["protect", "--redact", "-v", "--staged"]
+    gitleaks_report = "report.json"
+    gitleaks_git_logs = "HEAD~1..HEAD"
     report_path = os.path.join(os.getcwd(), "report.json")
     cmd = [
         "gitleaks",
-        "detect",
-        "--redact",
-        "-v",
-        f"--report-path={report_path}"
+        *gitleaks_opts,
+        f"--report-path={report_path}",
+        gitleaks_report,
+        "--log-opts=" + gitleaks_git_logs
     ]
+    # Print the command before executing
+    print("Executing command:", " ".join(cmd))
     exitCode = subprocess.call(cmd)
     # exitCode = os.WEXITSTATUS(os.system('gitleaks detect --redact -v'))
     if exitCode == 1:
