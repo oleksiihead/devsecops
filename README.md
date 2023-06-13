@@ -50,3 +50,5 @@ Now you can commit your code as usual and use advantages of the gitleaks.
 If gitleaks is not present on the system, it will be automatically installed based on the operating system.
 
 ## Senior
+
+Just delegate the task to Junior or Middle engineer)
