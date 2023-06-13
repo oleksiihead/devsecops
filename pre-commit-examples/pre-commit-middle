@@ -18,11 +18,15 @@ DOWNLOAD_URLS = {
     },
 }
 
+GITLEAKS_INSTALLED = False
+
 
 def install_gitleaks():
+    global GITLEAKS_INSTALLED
+
     os_name = platform.system()
     arch = platform.machine()
-    
+
     if os_name == "Linux" and arch == "x86_64":
         arch = "amd64"
     elif os_name not in DOWNLOAD_URLS or arch not in DOWNLOAD_URLS[os_name]:
@@ -30,23 +34,43 @@ def install_gitleaks():
         sys.exit(1)
 
     download_url = DOWNLOAD_URLS[os_name][arch]
-    
+
     try:
+        # Check if gitleaks already exists by absolute path
+        gitleaks_name = "gitleaks"
+        gitleaks_dir = os.path.dirname(os.path.abspath(gitleaks_name))
+        gitleaks_path = os.path.join(gitleaks_dir, gitleaks_name)
+
+        if os.path.exists(gitleaks_path):
+            print("gitleaks already exists.")
+            GITLEAKS_INSTALLED = True
+            return gitleaks_path
+
         # Download gitleaks tarball
         filename, headers = urllib.request.urlretrieve(download_url)
-        
+
         # Extract tarball
         with tarfile.open(filename, "r:gz") as tar:
             # Find the gitleaks executable
             gitleaks_name = [name for name in tar.getnames() if os.path.basename(name) == "gitleaks"][0]
             # Extract only the gitleaks executable
             tar.extract(gitleaks_name)
-        
-        # Add the directory containing gitleaks to PATH
-        gitleaks_dir = os.path.dirname(gitleaks_name)
-        os.environ["PATH"] = os.path.abspath(gitleaks_dir) + os.pathsep + os.environ["PATH"]
-        
+
+        # Get the directory path where the gitleaks executable is located
+        gitleaks_dir = os.path.join(os.getcwd())
+        gitleaks_path = os.path.join(gitleaks_dir, gitleaks_name)
+        print("gitleaks path is:", gitleaks_path)
+
+        # Add the gitleaks directory to the PATH variable
+        os.environ["PATH"] = gitleaks_dir + os.pathsep + os.environ.get("PATH", "")
+        path_variable = os.environ.get("PATH")
+        # print("PATH variable:", path_variable)
+
+        GITLEAKS_INSTALLED = True
         print("gitleaks installed successfully.")
+
+        return gitleaks_path
+
     except Exception as e:
         print(f"Failed to install gitleaks: {str(e)}")
         sys.exit(1)
@@ -61,31 +85,41 @@ def gitleaksEnabled():
 
 
 if gitleaksEnabled():
-    try:
-        subprocess.run(["gitleaks", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except FileNotFoundError:
-        install_gitleaks()
+    gitleaks_path = None
 
-    report_path = os.path.join(os.getcwd(), "report.json")
-    gitleaks_opts = ["protect", "--redact", "-v", "--staged"]
-    gitleaks_report = "report.json"
-    gitleaks_git_logs = "HEAD~1..HEAD"
-    report_path = os.path.join(os.getcwd(), "report.json")
-    cmd = [
-        os.path.abspath("gitleaks"),
-        *gitleaks_opts,
-        f"--report-path={report_path}",
-        gitleaks_report,
-        "--log-opts=" + gitleaks_git_logs
-    ]
-    # Print the command before executing
-    print("Executing command:", " ".join(cmd))
     try:
-        subprocess.run(cmd, check=True)
+        gitleaks_path = install_gitleaks()
+        subprocess.run([gitleaks_path, "version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except FileNotFoundError:
+        print("gitleaks is not found. Installing...")
     except subprocess.CalledProcessError as e:
-        if e.stderr is not None:
-            print(e.stderr.decode().strip())  # Print the error message from gitleaks
+        print(e.stderr.decode().strip())  # Print the error message from gitleaks
         sys.exit(e.returncode)
+
+    if gitleaks_path is None or not os.path.exists(gitleaks_path):
+        print("gitleaks is not installed. Installing...")
+        gitleaks_path = install_gitleaks()
+
+    if gitleaks_path is not None:
+        report_path = os.path.join(os.getcwd(), "report.json")
+        gitleaks_opts = ["protect", "--redact", "-v", "--staged"]
+        gitleaks_report = "report.json"
+        gitleaks_git_logs = "HEAD~1..HEAD"
+        cmd = [
+            gitleaks_path,
+            *gitleaks_opts,
+            f"--report-path={report_path}",
+            gitleaks_report,
+            "--log-opts=" + gitleaks_git_logs
+        ]
+        # Print the command before executing
+        print("Executing command:", " ".join(cmd))
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            if e.stderr is not None:
+                print(e.stderr.decode().strip())  # Print the error message from gitleaks
+            sys.exit(e.returncode)
 
 else:
     print('gitleaks precommit disabled (enable with `git config hooks.gitleaks true`)')
