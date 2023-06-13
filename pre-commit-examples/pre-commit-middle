@@ -38,7 +38,8 @@ def install_gitleaks():
     try:
         # Check if gitleaks already exists by absolute path
         gitleaks_name = "gitleaks"
-        gitleaks_dir = os.path.dirname(os.path.abspath(gitleaks_name))
+        # gitleaks_dir = os.path.dirname(os.path.abspath(gitleaks_name))
+        gitleaks_dir = os.path.join(os.getcwd(), ".git", "bin")
         gitleaks_path = os.path.join(gitleaks_dir, gitleaks_name)
 
         if os.path.exists(gitleaks_path):
@@ -64,7 +65,7 @@ def install_gitleaks():
         # Add the gitleaks directory to the PATH variable
         os.environ["PATH"] = gitleaks_dir + os.pathsep + os.environ.get("PATH", "")
         path_variable = os.environ.get("PATH")
-        # print("PATH variable:", path_variable)
+        print("PATH variable:", path_variable)
 
         GITLEAKS_INSTALLED = True
         print("gitleaks installed successfully.")
@@ -119,6 +120,12 @@ if gitleaksEnabled():
         except subprocess.CalledProcessError as e:
             if e.stderr is not None:
                 print(e.stderr.decode().strip())  # Print the error message from gitleaks
+            # Print the warning message when sensitive information is detected
+            print('''Warning: gitleaks has detected sensitive information in your changes.
+To disable the gitleaks precommit hook run the following command:
+
+    git config hooks.gitleaks false
+''')
             sys.exit(e.returncode)
 
 else:
