@@ -38,8 +38,8 @@ def install_gitleaks():
     try:
         # Check if gitleaks already exists by absolute path
         gitleaks_name = "gitleaks"
-        # gitleaks_dir = os.path.dirname(os.path.abspath(gitleaks_name))
-        gitleaks_dir = os.path.join(os.getcwd(), ".git", "bin")
+        gitleaks_dir = os.path.dirname(os.path.abspath(gitleaks_name))
+        #gitleaks_dir = os.path.join(os.getcwd(), ".git", "bin")
         gitleaks_path = os.path.join(gitleaks_dir, gitleaks_name)
 
         if os.path.exists(gitleaks_path):
